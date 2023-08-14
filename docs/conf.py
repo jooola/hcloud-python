@@ -39,6 +39,10 @@ source_suffix = {
 # directives. Default is True.
 add_module_names = False
 
+# sphinx.ext.autodoc
+# https://www.sphinx-doc.org/en/master/usage/extensions/autodoc.html#configuration
+autodoc_member_order = "bysource"
+
 # Myst Parser
 myst_enable_extensions = ["colon_fence"]
 
