@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from .client import BoundModelBase
+
 
 class BaseDomain:
-    __slots__ = ()
+    __slots__: tuple[str, ...] = ()
 
     @classmethod
     def from_dict(cls, data: dict):  # type: ignore[no-untyped-def]
@@ -13,8 +15,19 @@ class BaseDomain:
         return cls(**supported_data)
 
     def __repr__(self) -> str:
-        kwargs = [f"{key}={getattr(self, key)!r}" for key in self.__slots__]  # type: ignore[var-annotated]
-        return f"{self.__class__.__qualname__}({', '.join(kwargs)})"
+        obj = self
+        # Incomplete bound models can generate a lot of API calls, this ensure we
+        # only print the data we already have.
+        if isinstance(obj, BoundModelBase):
+            obj = obj.data_model
+
+        kwargs = []
+        for key in obj.__slots__:
+            value = getattr(obj, key)
+            if value is not None:
+                kwargs.append(f"{key}={value!r}")
+
+        return f"{self.__class__.__name__}({', '.join(kwargs)})"
 
 
 class DomainIdentityMixin:

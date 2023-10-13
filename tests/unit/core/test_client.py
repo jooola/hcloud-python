@@ -12,13 +12,28 @@ from hcloud.core import BaseDomain, BoundModelBase, ClientEntityBase, Meta
 class TestBoundModelBase:
     @pytest.fixture()
     def bound_model_class(self):
-        class Model(BaseDomain):
-            __slots__ = ("id", "name", "description")
+        class InnerModel(BaseDomain):
+            __slots__ = ("id", "name")
 
-            def __init__(self, id, name="", description=""):
+            def __init__(self, *, id, name=""):
+                self.id = id
+                self.name = name
+
+        class BoundInnerModel(BoundModelBase, InnerModel):
+            model = InnerModel
+
+        class Model(BaseDomain):
+            __slots__ = ("id", "name", "description", "inner")
+
+            def __init__(self, id, name="", description="", inner=None):
                 self.id = id
                 self.name = name
                 self.description = description
+                self.inner = (
+                    BoundInnerModel(client=mock.MagicMock(), data=inner)
+                    if inner is not None
+                    else None
+                )
 
         class BoundModel(BoundModelBase, Model):
             model = Model
@@ -38,6 +53,22 @@ class TestBoundModelBase:
         description = bound_model.description
         client.get_by_id.assert_not_called()
         assert description == "my_description"
+
+    def test_repr(self, bound_model_class, client):
+        bound_model = bound_model_class(
+            client=client,
+            data={
+                "id": 1,
+                "name": "name",
+                "description": "my_description",
+                "inner": {"id": 2, "name": "inner"},
+            },
+        )
+        assert (
+            repr(bound_model)
+            == "BoundModel(id=1, name='name', description='my_description', inner=BoundInnerModel(id=2, name='inner'))"
+        )
+        client.get_by_id.assert_not_called()
 
     def test_get_non_exists_model_attribute_complete_model(
         self, bound_model_class, client
