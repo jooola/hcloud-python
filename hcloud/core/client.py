@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any, Callable
 
 if TYPE_CHECKING:
     from .._client import Client
+
+
+logger = logging.getLogger(__name__)
 
 
 class ClientEntityBase:
@@ -80,6 +84,12 @@ class BoundModelBase:
         """
         value = getattr(self.data_model, name)
         if not value and not self.complete:
+            logger.debug(
+                "attribute %s not found, reloading model %s with id %d",
+                name,
+                self.model.__name__,
+                self.data_model.id,
+            )
             self.reload()
             value = getattr(self.data_model, name)
         return value
