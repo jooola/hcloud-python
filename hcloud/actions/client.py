@@ -16,7 +16,7 @@ class BoundAction(BoundModelBase, Action):
 
     model = Action
 
-    def wait_until_finished(self, max_retries: int = 100) -> None:
+    def wait_until_finished(self, max_retries: int | None = None) -> None:
         """Wait until the specific action has status="finished" (set Client.poll_interval to specify a delay between checks)
 
         :param max_retries: int
@@ -24,12 +24,17 @@ class BoundAction(BoundModelBase, Action):
         :raises: ActionFailedException when action is finished with status=="error"
         :raises: ActionTimeoutException when Action is still in "running" state after max_retries reloads.
         """
+        if max_retries is None:
+            # pylint: disable=protected-access
+            max_retries = self._client._client._poll_max_retries
+
+        retries = 0
         while self.status == Action.STATUS_RUNNING:
-            if max_retries > 0:
+            if retries < max_retries:
                 self.reload()
+                retries += 1
                 # pylint: disable=protected-access
-                time.sleep(self._client._client.poll_interval)
-                max_retries = max_retries - 1
+                time.sleep(self._client._client._poll_interval_func(retries))
             else:
                 raise ActionTimeoutException(action=self)
 

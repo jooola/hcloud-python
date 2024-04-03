@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import time
-from typing import NoReturn
+import warnings
+from typing import Callable, NoReturn, Protocol
 
 import requests
 
@@ -26,6 +27,15 @@ from .ssh_keys import SSHKeysClient
 from .volumes import VolumesClient
 
 
+class PollIntervalFunction(Protocol):
+    def __call__(self, retries: int) -> float:
+        """
+        Return a interval to wait between each actions API call.
+
+        :param retries: Number of poll calls already made.
+        """
+
+
 class Client:
     """Base Client for accessing the Hetzner Cloud API"""
 
@@ -39,7 +49,8 @@ class Client:
         api_endpoint: str = "https://api.hetzner.cloud/v1",
         application_name: str | None = None,
         application_version: str | None = None,
-        poll_interval: int = 1,
+        poll_interval: float | PollIntervalFunction = 1.0,
+        poll_max_retries: int = 120,
         timeout: float | tuple[float, float] | None = None,
     ):
         """Create a new Client instance
@@ -48,7 +59,11 @@ class Client:
         :param api_endpoint: Hetzner Cloud API endpoint
         :param application_name: Your application name
         :param application_version: Your application _version
-        :param poll_interval: Interval for polling information from Hetzner Cloud API in seconds
+        :param poll_interval:
+            Interval in seconds to use when polling actions from the API.
+            You may pass a function to compute a custom poll interval.
+        :param poll_max_retries:
+            Max retries before timeout when polling actions from the API.
         :param timeout: Requests timeout in seconds
         """
         self.token = token
@@ -57,7 +72,13 @@ class Client:
         self._application_version = application_version
         self._requests_session = requests.Session()
         self._requests_timeout = timeout
-        self.poll_interval = poll_interval
+
+        self._poll_interval_func: PollIntervalFunction
+        if isinstance(poll_interval, Callable):
+            self._poll_interval_func = poll_interval
+        else:
+            self._poll_interval_func = lambda _: poll_interval
+        self._poll_max_retries = poll_max_retries
 
         self.datacenters = DatacentersClient(self)
         """DatacentersClient Instance
@@ -148,6 +169,28 @@ class Client:
 
         :type: :class:`PlacementGroupsClient <hcloud.placement_groups.client.PlacementGroupsClient>`
         """
+
+    # pylint: disable=missing-function-docstring
+    @property
+    def poll_interval(self):
+        warnings.warn(
+            "The 'Client.poll_interval' property is deprecated and will be removed in the next major release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._poll_interval_func(1)
+
+    @poll_interval.setter
+    def poll_interval(self, value: float | PollIntervalFunction):
+        warnings.warn(
+            "The 'Client.poll_interval' property is deprecated and will be removed in the next major release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if isinstance(value, Callable):
+            self._poll_interval_func = value
+        else:
+            self._poll_interval_func = lambda _: value
 
     def _get_user_agent(self) -> str:
         """Get the user agent of the hcloud-python instance with the user application name (if specified)
